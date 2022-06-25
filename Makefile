@@ -64,7 +64,7 @@ OBJECTS		:= $(SOURCES:.c=.o)
 
 OUTPUTMAIN	:= $(call FIXPATH,$(OUTPUT)/$(MAIN))
 
-all: $(OUTPUT) $(MAIN) app1
+all: $(OUTPUT) $(MAIN) app1 app2
 	@echo Executing 'all' complete!
 
 $(OUTPUT):
@@ -75,6 +75,9 @@ $(MAIN):
 
 app1: 
 	$(CC) $(CFLAGS) $(INCLUDES) -o output/app1 src/app.c $(LFLAGS) $(LIBS)
+
+app2: 
+	$(CC) $(CFLAGS) $(INCLUDES) -o output/app2 src/daemon.c $(LFLAGS) $(LIBS)
 
 # this is a suffix replacement rule for building .o's from .c's
 # it uses automatic variables $<: the name of the prerequisite of
