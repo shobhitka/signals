@@ -33,18 +33,18 @@ typedef enum {
 
 program_t programs[] = {
 	{
-		"test1", 
-		"./test1",
-		{ "./test1", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
+		"script 1", 
+		"/home/shokumar/sandbox/procmon-clone/script1.sh",
+		{ "/home/shokumar/sandbox/procmon-clone/scipt1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
 		-1,
 		STATUS_PROGRAM_LAUNCH_PENDING,
 	},
 	{
-		"test2", 
-		"./test2",
-		{ "./test1", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
+		"script 2", 
+		"/home/shokumar/sandbox/procmon-clone/script2.sh",
+		{ "/home/shokumar/sandbox/procmon-clone/scipt2.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
 		-1,
@@ -109,37 +109,37 @@ int launch_program(program_t *program)
 	return -1;
 }
 
-void update_program_status(pid_t wpid)
-{
-	program_t *program = NULL;
-	unsigned int i;
-	for (i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
-		if (programs[i].pid == wpid) {
-			program = &programs[i];
-			break;
-		}
-	}
-
-	if (!program) {
-		printf("No program found: Should not have happened\n");
-		return;
-	}
-
-	programs->status = STATUS_PROGRAM_STOPPED;
-	program->pid = -1;
-	running--;
-}
-
 // handle program termination using SIGINT
 void signal_handler(int signum)
 {
 	switch(signum) {
 		case SIGCHLD:
 		{
-			pid_t wpid = wait(NULL);
-			// update program status
-			update_program_status(wpid);
-			dump_programs();
+			program_t *program;
+
+			// loop through all active programs and wait for them as SIGCHLD can get
+			// colaced and we might miss some of them
+			for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
+				program = &programs[i];
+				if (program->status != STATUS_PROGRAM_LAUNCH_ACTIVE)
+					continue;
+
+				pid_t wpid = waitpid(program->pid, NULL, WNOHANG);
+				if (wpid == 0) {
+					// this pid did not exit
+					continue;
+				} else if (wpid == program->pid) {
+					// program exited
+					printf("Terminated Program: %s\n", program->name);
+					program->status = STATUS_PROGRAM_STOPPED;
+					program->pid = -1;
+					running--;
+				} else {
+					// error in waitpid system call; should not happem
+					printf("This hsould not happen but, waitpid() failed for program: %s, pid: %d\n", program->name, program->pid);
+					continue;
+				}
+			}
 
 			if (running == 0) {
 				printf("All programs terminated. quitting\n");
