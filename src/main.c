@@ -54,7 +54,7 @@ typedef enum {
 
 program_t programs[] = {
 	{
-		"script 1", 
+		"start p1", 
 		"/home/shokumar/sandbox/procmon-clone/start_p1.sh",
 		{ "/home/shokumar/sandbox/procmon-clone/start_p1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
