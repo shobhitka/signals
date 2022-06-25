@@ -234,6 +234,17 @@ void signal_handler(int signum)
 
 			break;
 		}
+		case SIGSEGV:
+			{
+				// log or dump anything you ould want
+
+			}
+		case SIGTERM:
+			{
+				if (signum == SIGTERM) {
+					printf("Received SIGTERM. Terminating all launched programs\n");
+				}
+			}
 		case SIGINT:
 		{
 			if (running == 0) {
@@ -253,6 +264,16 @@ void signal_handler(int signum)
 				}
 			}
 
+			if (signum == SIGSEGV) {
+				// if I fell through the switchcase with signum as SIGSEGV, I just can
+				// try to send the SIGTERM to amm my laucnhed program and then assume
+				// they terminate well. I don't care for SIGCHLD neither can I handle that
+				// when it comes later as don't know what is my program state. So just
+				// generate core dump by raising SIGSEGV signal again and get terminated.
+				printf("Segfaulting myself to generate core dump\n");
+				signal(SIGSEGV, SIG_DFL);
+				kill(getpid(), SIGSEGV);
+			}
 			break;
 		}
 		default:
@@ -274,6 +295,8 @@ int main()
 	// register signal handlers
 	signal(SIGCHLD, signal_handler);
 	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGSEGV, signal_handler);
 
 	while (1)
 		sleep(10);
