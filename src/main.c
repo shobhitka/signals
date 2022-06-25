@@ -82,9 +82,9 @@ program_t programs[] = {
 	},
 };
 
-static volatile int running = 0;
-static volatile int procmon_abort = 0;
-static volatile int runlevel_state = RUNLEVEL_STATE_STARTING;
+static volatile sig_atomic_t running = 0;
+static volatile sig_atomic_t procmon_abort = 0;
+static volatile sig_atomic_t runlevel_state = RUNLEVEL_STATE_STARTING;
 
 char *get_program_status(int status)
 {
