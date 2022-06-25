@@ -109,6 +109,18 @@ int launch_program(program_t *program)
 	return -1;
 }
 
+void kill_runlevel()
+{
+	program_t *program;
+	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
+		program = &programs[i];
+		if (program->status == STATUS_PROGRAM_LAUNCH_ACTIVE) {
+			printf("Sending SIGTERM to program: %s, pid: %d\n", program->name, program->pid);
+			kill(program->pid, SIGTERM);
+		}
+	}
+}
+
 // handle program termination using SIGINT
 void signal_handler(int signum)
 {
@@ -145,6 +157,12 @@ void signal_handler(int signum)
 				printf("All programs terminated. quitting\n");
 				exit(0);
 			}
+
+			// some prorams are still running. We are simulating procmon runlevel actually
+			// so send SIGTERM to terminate all other programs
+			// this can happen when we kill the program using pkill -15
+			kill_runlevel();
+
 			break;
 		}
 		case SIGINT:
