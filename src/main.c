@@ -7,8 +7,11 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <time.h>
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
+#define QUICK_START_TIME	10 // seconds
+#define QUICK_RESTART_COUNT	5
 
 typedef struct program_t
 {
@@ -21,6 +24,8 @@ typedef struct program_t
 	pid_t pid;
 	int status;
 	int restart_cnt;
+	time_t last_restart;
+	int quick_restart_cnt;
 } program_t;
 
 typedef enum {
@@ -47,8 +52,6 @@ typedef enum {
 	RUNLEVEL_STATE_STABLE = 3,
 } runlevel_state_t;
 
-static volatile int runlevel_state = RUNLEVEL_STATE_STARTING;
-
 program_t programs[] = {
 	{
 		"script 1", 
@@ -60,6 +63,8 @@ program_t programs[] = {
 		-1,
 		STATUS_PROGRAM_LAUNCH_PENDING,
 		-1,
+		0,
+		0,
 	},
 	{
 		"script 2", 
@@ -71,11 +76,14 @@ program_t programs[] = {
 		-1,
 		STATUS_PROGRAM_LAUNCH_PENDING,
 		-1,
+		0,
+		0,
 	},
 };
 
 static volatile int running = 0;
 static volatile int procmon_abort = 0;
+static volatile int runlevel_state = RUNLEVEL_STATE_STARTING;
 
 char *get_program_status(int status)
 {
@@ -114,6 +122,7 @@ int launch_program(program_t *program)
 		// parent, print child details and return
 		printf("Succesfully launched: %s, pid: %d\n", program->name, program->pid);
 		program->status = STATUS_PROGRAM_LAUNCH_ACTIVE;
+		program->last_restart = time(NULL);
 		running++;
 		return 0;
 	} else {
@@ -158,6 +167,26 @@ void *launch_runlevel_programs(void *data)
 		program = &programs[i];
 
 		if (program->restart || program->restart_cnt == -1) {
+			if (program->last_restart != 0) {
+				// check if we are doing a quick restart for persistent failures
+				time_t curr = time(NULL);
+				if ((program->last_restart - curr) < QUICK_START_TIME) {
+					// quick restarts
+					program->quick_restart_cnt++;
+					if (program->quick_restart_cnt > QUICK_RESTART_COUNT) {
+						// we need to terminate all and quit
+						kill_runlevel();
+						procmon_abort = 2;
+						if (running == 0) {
+							// no more SIGCHLD will come, simply abort here
+							dump_programs();
+							printf("Programs restarting too frequently. Aborting for good.\n");
+							exit(0);
+						}
+						pthread_exit(NULL);
+					}
+				}
+			}
 			if (launch_program(program) < 0) {
 				cnt++;
 			}
@@ -223,11 +252,17 @@ void signal_handler(int signum)
 			}
 
 			if (running == 0 && procmon_abort) {
-				printf("All programs terminated. Quitting\n");
+				if (procmon_abort == 1)
+					printf("All programs terminated. Quitting\n");
+				else if (procmon_abort == 2) {
+					dump_programs();
+					printf("Programs restarting too frequently. Quitting for good.\n");
+				}
+
 				exit(0);
 			}
 
-			if (running == 0 && !procmon_abort) {
+			if (running == 0 && procmon_abort == 0) {
 				printf("All programs terminated. Restarting runlevel\n");
 				launch_runlevel();
 				return;
@@ -292,12 +327,6 @@ void signal_handler(int signum)
 
 int main()
 {
-	launch_runlevel();
-
-	while (runlevel_state != RUNLEVEL_STATE_STABLE) {
-		sleep(1);
-	}
-
 	// register signal handlers
 	signal(SIGCHLD, signal_handler);
 	signal(SIGINT, signal_handler);
@@ -305,6 +334,12 @@ int main()
 	signal(SIGSEGV, signal_handler);
 	signal(SIGUSR1, signal_handler);
 	signal(SIGUSR2, signal_handler);
+
+	launch_runlevel();
+
+	while (runlevel_state != RUNLEVEL_STATE_STABLE) {
+		sleep(1);
+	}
 
 	while (1)
 		sleep(10);
