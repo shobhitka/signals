@@ -21,6 +21,7 @@ void *thread_handler(void *data)
         sleep(3 * num);
     }
 
+    printf("APP1: Stopping thread tid: %u, app id: %d\n", (unsigned int) tid, num);
     pthread_exit(NULL);
 }
 
@@ -31,6 +32,8 @@ void signal_handler(int signum)
         {
             printf("Received SIGTERM in APP1\n");
             stop = 1;
+            // putting sleep so that we can see the threads terminating.
+            sleep(10);
             exit(0);
         }
     }
@@ -41,6 +44,8 @@ int main()
     pthread_t tid1, tid2;
     int app_id = 1;
 
+    signal(SIGTERM, signal_handler);
+
     // launch some threads 
     pthread_create(&tid1, NULL, thread_handler, (void *) &app_id);
     pthread_detach(tid1);
@@ -48,8 +53,6 @@ int main()
     app_id = 2;
     pthread_create(&tid2, NULL, thread_handler, (void *) &app_id);
     pthread_detach(tid2);
-
-    signal(SIGTERM, signal_handler);
 
     while (1) {
         sleep(10);

@@ -277,44 +277,37 @@ void signal_handler(int signum)
 		}
 		case SIGSEGV:
 			{
+				kill_runlevel();
 				// log or dump anything you ould want
 
-			}
-		case SIGTERM:
-			{
-				if (signum == SIGTERM) {
-					printf("Received SIGTERM. Terminating all launched programs\n");
-				}
-			}
-		case SIGINT:
-		{
-			if (running == 0) {
-				printf("All programs terminated. quitting\n");
-				exit(0);
-			}
-
-			procmon_abort = 1;
-
-			// send SIGTERM to all running programs
-			for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
-				if (programs[i].status == STATUS_PROGRAM_LAUNCH_ACTIVE) {
-					printf("Sending SIGTERM to program: %s, pid: %d\n", programs[i].name, programs[i].pid);
-					kill(programs[i].pid, SIGTERM);
-
-					// TBD: shutdown promise implementation
-				}
-			}
-
-			if (signum == SIGSEGV) {
 				// if I fell through the switchcase with signum as SIGSEGV, I just can
-				// try to send the SIGTERM to amm my laucnhed program and then assume
+				// try to send the SIGTERM to any launched program and then assume
 				// they terminate well. I don't care for SIGCHLD neither can I handle that
 				// when it comes later as don't know what is my program state. So just
 				// generate core dump by raising SIGSEGV signal again and get terminated.
 				printf("Segfaulting myself to generate core dump\n");
 				signal(SIGSEGV, SIG_DFL);
 				kill(getpid(), SIGSEGV);
+				break;
 			}
+		case SIGTERM:
+			{
+				printf("Received SIGTERM. Terminating all launched programs\n");
+				procmon_abort = 1;
+				kill_runlevel();
+				break;
+			}
+		case SIGINT:
+		{
+			printf("Received SIGINT, terminating all programs and aborting.\n");
+
+			if (running == 0) {
+				printf("All programs terminated. quitting\n");
+				exit(0);
+			}
+
+			procmon_abort = 1;
+			kill_runlevel();
 			break;
 		}
 		default:
