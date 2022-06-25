@@ -36,6 +36,11 @@ void signal_handler(int signum)
             sleep(10);
             exit(0);
         }
+        case SIGINT:
+        {
+            printf("APP1: Received SIGINT, Ignoring for now\n");
+            break;           
+        }
     }
 }
 
@@ -45,6 +50,7 @@ int main()
     int app_id = 1;
 
     signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
 
     // launch some threads 
     pthread_create(&tid1, NULL, thread_handler, (void *) &app_id);
