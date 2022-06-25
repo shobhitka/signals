@@ -64,14 +64,17 @@ OBJECTS		:= $(SOURCES:.c=.o)
 
 OUTPUTMAIN	:= $(call FIXPATH,$(OUTPUT)/$(MAIN))
 
-all: $(OUTPUT) $(MAIN)
+all: $(OUTPUT) $(MAIN) app1
 	@echo Executing 'all' complete!
 
 $(OUTPUT):
 	$(MD) $(OUTPUT)
 
-$(MAIN): $(OBJECTS) 
-	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUTMAIN) $(OBJECTS) $(LFLAGS) $(LIBS)
+$(MAIN):
+	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUTMAIN) src/main.c $(LFLAGS) $(LIBS)
+
+app1: 
+	$(CC) $(CFLAGS) $(INCLUDES) -o output/app1 src/app.c $(LFLAGS) $(LIBS)
 
 # this is a suffix replacement rule for building .o's from .c's
 # it uses automatic variables $<: the name of the prerequisite of
@@ -84,6 +87,7 @@ $(MAIN): $(OBJECTS)
 clean:
 	$(RM) $(OUTPUTMAIN)
 	$(RM) $(call FIXPATH,$(OBJECTS))
+	$(RM) output/app1
 	@echo Cleanup complete!
 
 run: all
