@@ -68,9 +68,9 @@ program_t programs[] = {
 		0,
 	},
 	{
-		"start p2", 
-		"/home/shokumar/sandbox/procmon-clone/output/app2",
-		{ "/home/shokumar/sandbox/procmon-clone/output/app2", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
+		"script 2", 
+		"/home/shokumar/sandbox/procmon-clone/script2.sh",
+		{ "/home/shokumar/sandbox/procmon-clone/scipt2.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
 		ALLOW_PROGRAM_RUN_RESTART,

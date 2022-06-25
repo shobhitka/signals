@@ -1,2 +1,7 @@
 #!/bin/bash
-exec /home/shokumar/sandbox/procmon-clone/output/app2
+
+while [ 1 ]
+do
+    echo "I am script 2"
+    sleep 3
+done

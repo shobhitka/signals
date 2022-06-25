@@ -30,7 +30,7 @@ void signal_handler(int signum)
     switch(signum) {
         case SIGTERM:
         {
-            printf("APP1: Received SIGTERM\n");
+            printf("Received SIGTERM in APP1\n");
             stop = 1;
             // putting sleep so that we can see the threads terminating.
             sleep(10);
