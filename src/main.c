@@ -33,6 +33,7 @@ typedef enum {
 	STATUS_PROGRAM_STOPPED = -1,
 	STATUS_PROGRAM_LAUNCH_FAIL = -2,
 	STATUS_PROGRAM_LAUNCH_PENDING = -3,
+	STATUS_PROGRAM_STOPPING = -4,
 } program_staus_t;
 
 typedef enum {
@@ -96,15 +97,17 @@ char *get_program_status(int status)
 			return "FAILED";
 		case STATUS_PROGRAM_LAUNCH_PENDING:
 			return "PENDING";
+		case STATUS_PROGRAM_STOPPING:
+			return "STOPPING";
 		default:
-			return "FAILED";
+			return "UNKNOWN";
 	}
 }
 
 void dump_programs()
 {
 	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
-		printf("Name: %s --> status: %s, restart cnt: %d, pid: %d\n", programs[i].name, get_program_status(programs[i].status), programs[i].restart_cnt, programs[i].pid);
+		printf("Name: %s --> status: %s (%d), restart cnt: %d, pid: %d\n", programs[i].name, get_program_status(programs[i].status), programs[i].status, programs[i].restart_cnt, programs[i].pid);
 	}
 }
 
@@ -148,6 +151,7 @@ void kill_runlevel()
 		program = &programs[i];
 		if (program->status == STATUS_PROGRAM_LAUNCH_ACTIVE) {
 			printf("Sending SIGTERM to program: %s, pid: %d\n", program->name, program->pid);
+			program->status = STATUS_PROGRAM_STOPPING;
 			kill(program->pid, SIGTERM);
 		}
 	}
@@ -231,7 +235,7 @@ void signal_handler(int signum)
 			// colaced and we might miss some of them
 			for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
 				program = &programs[i];
-				if (program->status != STATUS_PROGRAM_LAUNCH_ACTIVE)
+				if (program->status != STATUS_PROGRAM_LAUNCH_ACTIVE && program->status != STATUS_PROGRAM_STOPPING)
 					continue;
 
 				pid_t wpid = waitpid(program->pid, NULL, WNOHANG);
@@ -246,11 +250,12 @@ void signal_handler(int signum)
 					running--;
 				} else {
 					// error in waitpid system call; should not happem
-					printf("This hsould not happen but, waitpid() failed for program: %s, pid: %d\n", program->name, program->pid);
+					printf("This should not happen but, waitpid() failed for program: %s, pid: %d\n", program->name, program->pid);
 					continue;
 				}
 			}
 
+			dump_programs();
 			if (running == 0 && procmon_abort) {
 				if (procmon_abort == 1)
 					printf("All programs terminated. Quitting\n");
