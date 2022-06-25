@@ -6,6 +6,9 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <pthread.h>
+
+#define UNUSED(expr) do { (void)(expr); } while (0)
 
 typedef struct program_t
 {
@@ -13,9 +16,11 @@ typedef struct program_t
 	char command[256];
 	char *args[64];
 	int shutdown_promise;
-	int daemon;
+	int type;
+	int restart;
 	pid_t pid;
 	int status;
+	int restart_cnt;
 } program_t;
 
 typedef enum {
@@ -31,6 +36,19 @@ typedef enum {
 	PROGRAM_TYPE_SCRIPT = 3,
 } program_type_t;
 
+typedef enum {
+	ALLOW_PROGRAM_RUN_ONETIME = 1,
+	ALLOW_PROGRAM_RUN_RESTART = 2,
+} program_restart_t;
+
+typedef enum {
+	RUNLEVEL_STATE_STARTING = 1,
+	RUNLEVEL_STATE_PROGRESS = 2,
+	RUNLEVEL_STATE_STABLE = 3,
+} runlevel_state_t;
+
+static volatile int runlevel_state = RUNLEVEL_STATE_STARTING;
+
 program_t programs[] = {
 	{
 		"script 1", 
@@ -38,8 +56,10 @@ program_t programs[] = {
 		{ "/home/shokumar/sandbox/procmon-clone/scipt1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
+		ALLOW_PROGRAM_RUN_RESTART,
 		-1,
 		STATUS_PROGRAM_LAUNCH_PENDING,
+		-1,
 	},
 	{
 		"script 2", 
@@ -47,12 +67,15 @@ program_t programs[] = {
 		{ "/home/shokumar/sandbox/procmon-clone/scipt2.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
+		ALLOW_PROGRAM_RUN_RESTART,
 		-1,
 		STATUS_PROGRAM_LAUNCH_PENDING,
+		-1,
 	},
 };
 
-static int running = 0;
+static volatile int running = 0;
+static volatile int procmon_abort = 0;
 
 char *get_program_status(int status)
 {
@@ -73,7 +96,7 @@ char *get_program_status(int status)
 void dump_programs()
 {
 	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
-		printf("Name: %s --> status: %s, pid: %d\n", programs[i].name, get_program_status(programs[i].status), programs[i].pid);
+		printf("Name: %s --> status: %s, restart cnt: %d, pid: %d\n", programs[i].name, get_program_status(programs[i].status), programs[i].restart_cnt, programs[i].pid);
 	}
 }
 
@@ -121,6 +144,46 @@ void kill_runlevel()
 	}
 }
 
+void *launch_runlevel_programs(void *data)
+{
+	int cnt = 0;
+	program_t *program;
+
+	UNUSED(data);
+
+	runlevel_state = RUNLEVEL_STATE_PROGRESS;
+
+	// launch all programs
+	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
+		program = &programs[i];
+
+		if (program->restart || program->restart_cnt == -1) {
+			if (launch_program(program) < 0) {
+				cnt++;
+			}
+
+			// increment the restart count either way as a succefull or failed attampt
+			program->restart_cnt++;
+		}		
+	}
+
+	if (cnt) {
+		printf("Some program failed to launch. Failed count: %d\n", cnt);
+	}
+
+	runlevel_state = RUNLEVEL_STATE_STABLE;
+
+	dump_programs();
+	pthread_exit(NULL);
+}
+
+void launch_runlevel()
+{
+	pthread_t tid;
+	pthread_create(&tid, NULL, launch_runlevel_programs, NULL);
+	pthread_detach(tid);
+}
+
 // handle program termination using SIGINT
 void signal_handler(int signum)
 {
@@ -153,9 +216,15 @@ void signal_handler(int signum)
 				}
 			}
 
-			if (running == 0) {
-				printf("All programs terminated. quitting\n");
+			if (running == 0 && procmon_abort) {
+				printf("All programs terminated. Quitting\n");
 				exit(0);
+			}
+
+			if (running == 0 && !procmon_abort) {
+				printf("All programs terminated. Restarting runlevel\n");
+				launch_runlevel();
+				return;
 			}
 
 			// some prorams are still running. We are simulating procmon runlevel actually
@@ -172,6 +241,8 @@ void signal_handler(int signum)
 				exit(0);
 			}
 
+			procmon_abort = 1;
+
 			// send SIGTERM to all running programs
 			for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
 				if (programs[i].status == STATUS_PROGRAM_LAUNCH_ACTIVE) {
@@ -181,6 +252,7 @@ void signal_handler(int signum)
 					// TBD: shutdown promise implementation
 				}
 			}
+
 			break;
 		}
 		default:
@@ -193,18 +265,10 @@ void signal_handler(int signum)
 
 int main()
 {
-	int cnt = 0;
+	launch_runlevel();
 
-	// launch all programs
-	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
-		if (launch_program(&programs[i]) < 0) {
-			cnt++;
-		}
-	}
-
-	if (cnt) {
-		printf("Some program failed to launch. Failed count: %d\n", cnt);
-		dump_programs();
+	while (runlevel_state != RUNLEVEL_STATE_STABLE) {
+		sleep(1);
 	}
 
 	// register signal handlers
