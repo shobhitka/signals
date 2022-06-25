@@ -52,8 +52,8 @@ static volatile int runlevel_state = RUNLEVEL_STATE_STARTING;
 program_t programs[] = {
 	{
 		"script 1", 
-		"/home/shokumar/sandbox/procmon-clone/script1.sh",
-		{ "/home/shokumar/sandbox/procmon-clone/scipt1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
+		"/home/shokumar/sandbox/procmon-clone/start_p1.sh",
+		{ "/home/shokumar/sandbox/procmon-clone/start_p1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
 		ALLOW_PROGRAM_RUN_RESTART,
@@ -188,6 +188,12 @@ void launch_runlevel()
 void signal_handler(int signum)
 {
 	switch(signum) {
+		case SIGUSR1:
+		case SIGUSR2:
+			{
+				dump_programs();
+				break;
+			}
 		case SIGCHLD:
 		{
 			program_t *program;
@@ -297,6 +303,8 @@ int main()
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 	signal(SIGSEGV, signal_handler);
+	signal(SIGUSR1, signal_handler);
+	signal(SIGUSR2, signal_handler);
 
 	while (1)
 		sleep(10);
