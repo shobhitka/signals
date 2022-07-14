@@ -30,11 +30,9 @@ void signal_handler(int signum)
     switch(signum) {
         case SIGTERM:
         {
-            printf("Received SIGTERM in APP1\n");
+            printf("Received SIGTERM in APP1: received in thread id: %u\n", (unsigned int) syscall(SYS_gettid));
             stop = 1;
-            // putting sleep so that we can see the threads terminating.
-            sleep(10);
-            exit(0);
+            break;
         }
         case SIGINT:
         {
@@ -54,13 +52,11 @@ int main()
 
     // launch some threads 
     pthread_create(&tid1, NULL, thread_handler, (void *) &app_id);
-    pthread_detach(tid1);
     sleep(1);
     app_id = 2;
     pthread_create(&tid2, NULL, thread_handler, (void *) &app_id);
-    pthread_detach(tid2);
 
-    while (1) {
-        sleep(10);
-    }
+    // block till both threads terminate
+    pthread_join(tid1, NULL); // will block till tid1 terminates
+    pthread_join(tid2, NULL); // will block till tid2 terminates
 }
