@@ -1,2 +1,2 @@
 #!/bin/bash
-exec /home/shokumar/sandbox/procmon-clone/output/app1
+exec /home/shokumar/sandbox/github/signals/output/app1

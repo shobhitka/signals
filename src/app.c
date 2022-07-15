@@ -17,11 +17,11 @@ void *thread_handler(void *data)
     pthread_t tid = syscall(SYS_gettid);
     int num = *((int *) data);
     while(stop == 0) {
-        printf("APP1: Running thread tid: %u, app id: %d\n", (unsigned int) tid, num);
+        printf("C_APP: Running thread tid: %u, app id: %d\n", (unsigned int) tid, num);
         sleep(3 * num);
     }
 
-    printf("APP1: Stopping thread tid: %u, app id: %d\n", (unsigned int) tid, num);
+    printf("C_APP: Stopping thread tid: %u, app id: %d\n", (unsigned int) tid, num);
     pthread_exit(NULL);
 }
 
@@ -30,14 +30,14 @@ void signal_handler(int signum)
     switch(signum) {
         case SIGTERM:
         {
-            printf("Received SIGTERM in APP1: received in thread id: %u\n", (unsigned int) syscall(SYS_gettid));
+            printf("Received SIGTERM in APP1 --> Received in thread id: %u\n", (unsigned int) syscall(SYS_gettid));
             stop = 1;
             break;
         }
         case SIGINT:
         {
             printf("APP1: Received SIGINT, Ignoring for now\n");
-            break;           
+            break;
         }
     }
 }

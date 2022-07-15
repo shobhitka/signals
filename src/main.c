@@ -56,8 +56,8 @@ typedef enum {
 program_t programs[] = {
 	{
 		"start p1", 
-		"/home/shokumar/sandbox/procmon-clone/start_p1.sh",
-		{ "/home/shokumar/sandbox/procmon-clone/start_p1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
+		"/home/shokumar/sandbox/github/signals/start_p1.sh",
+		{ "/home/shokumar/sandbox/github/signals/start_p1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
 		ALLOW_PROGRAM_RUN_RESTART,
@@ -69,8 +69,8 @@ program_t programs[] = {
 	},
 	{
 		"script 2", 
-		"/home/shokumar/sandbox/procmon-clone/script2.sh",
-		{ "/home/shokumar/sandbox/procmon-clone/scipt2.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
+		"/home/shokumar/sandbox/github/signals/script2.sh",
+		{ "/home/shokumar/sandbox/github/signals/scipt2.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
 		PROGRAM_TYPE_SIMPLE,
 		ALLOW_PROGRAM_RUN_RESTART,
