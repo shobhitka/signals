@@ -30,10 +30,10 @@ typedef struct program_t
 
 typedef enum {
 	STATUS_PROGRAM_LAUNCH_ACTIVE = 0,
-	STATUS_PROGRAM_STOPPED = -1,
-	STATUS_PROGRAM_LAUNCH_FAIL = -2,
-	STATUS_PROGRAM_LAUNCH_PENDING = -3,
-	STATUS_PROGRAM_STOPPING = -4,
+	STATUS_PROGRAM_STOPPING = -1,
+	STATUS_PROGRAM_STOPPED = -2,
+	STATUS_PROGRAM_LAUNCH_FAIL = -3,
+	STATUS_PROGRAM_LAUNCH_PENDING = -4,
 } program_staus_t;
 
 typedef enum {
@@ -51,11 +51,12 @@ typedef enum {
 	RUNLEVEL_STATE_STARTING = 1,
 	RUNLEVEL_STATE_PROGRESS = 2,
 	RUNLEVEL_STATE_STABLE = 3,
+	RUNLEVEL_STATE_STOPPING = 4,
 } runlevel_state_t;
 
 program_t programs[] = {
 	{
-		"start p1", 
+		"start p1",
 		"/home/shokumar/sandbox/github/signals/start_p1.sh",
 		{ "/home/shokumar/sandbox/github/signals/start_p1.sh", NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 		10,
@@ -82,7 +83,6 @@ program_t programs[] = {
 	},
 };
 
-static volatile sig_atomic_t running = 0;
 static volatile sig_atomic_t procmon_abort = 0;
 static volatile sig_atomic_t runlevel_state = RUNLEVEL_STATE_STARTING;
 
@@ -104,11 +104,41 @@ char *get_program_status(int status)
 	}
 }
 
+char *get_runlevel_status_str()
+{
+	switch (runlevel_state)
+	{
+	case RUNLEVEL_STATE_PROGRESS:
+		return ("IN_PROGRESS");
+	case RUNLEVEL_STATE_STABLE:
+		return ("STABLE");
+	case RUNLEVEL_STATE_STARTING:
+		return ("STARTING");
+	case RUNLEVEL_STATE_STOPPING:
+		return ("STOPPING");
+	default:
+		return "UNKNOWN";
+	}
+}
+
 void dump_programs()
 {
+	printf("Runlevel State: %s\n", get_runlevel_status_str());
 	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
 		printf("Name: %s --> status: %s (%d), restart cnt: %d, pid: %d\n", programs[i].name, get_program_status(programs[i].status), programs[i].status, programs[i].restart_cnt, programs[i].pid);
 	}
+}
+
+int all_programs_stopped()
+{
+	for (unsigned int i = 0; i < sizeof(programs)/sizeof(program_t); i++) {
+		if (programs[i].status >= STATUS_PROGRAM_STOPPING)
+			return 0;
+		else
+			continue;
+	}
+
+	return 1;
 }
 
 int launch_program(program_t *program)
@@ -126,7 +156,6 @@ int launch_program(program_t *program)
 		printf("Succesfully launched: %s, pid: %d\n", program->name, program->pid);
 		program->status = STATUS_PROGRAM_LAUNCH_ACTIVE;
 		program->last_restart = time(NULL);
-		running++;
 		return 0;
 	} else {
 		if (retVal != 0) {
@@ -136,7 +165,7 @@ int launch_program(program_t *program)
 			wait(NULL);
 		} else
 			printf("vfork() failed for program: %s, error: %s\n", program->name, strerror(errno));
-		
+
 		program->status = STATUS_PROGRAM_LAUNCH_FAIL;
 		return -1;
 	}
@@ -156,7 +185,6 @@ void kill_runlevel()
 		} else {
 			printf("Skipping SIGTERM sending to program: %s, curr_status: %s\n", program->name, get_program_status(program->status));
 		}
-
 	}
 }
 
@@ -184,7 +212,7 @@ void *launch_runlevel_programs(void *data)
 						// we need to terminate all and quit
 						kill_runlevel();
 						procmon_abort = 2;
-						if (running == 0) {
+						if (all_programs_stopped()) {
 							// no more SIGCHLD will come, simply abort here
 							dump_programs();
 							printf("Programs restarting too frequently. Aborting for good.\n");
@@ -200,7 +228,7 @@ void *launch_runlevel_programs(void *data)
 
 			// increment the restart count either way as a succefull or failed attampt
 			program->restart_cnt++;
-		}		
+		}
 	}
 
 	if (cnt) {
@@ -250,7 +278,6 @@ void signal_handler(int signum)
 					printf("Terminated Program: %s\n", program->name);
 					program->status = STATUS_PROGRAM_STOPPED;
 					program->pid = -1;
-					running--;
 				} else {
 					// error in waitpid system call; should not happem
 					printf("This should not happen but, waitpid() failed for program: %s, pid: %d\n", program->name, program->pid);
@@ -259,7 +286,7 @@ void signal_handler(int signum)
 			}
 
 			dump_programs();
-			if (running == 0 && procmon_abort) {
+			if (all_programs_stopped() && procmon_abort) {
 				if (procmon_abort == 1)
 					printf("All programs terminated. Quitting\n");
 				else if (procmon_abort == 2) {
@@ -270,7 +297,7 @@ void signal_handler(int signum)
 				exit(0);
 			}
 
-			if (running == 0 && procmon_abort == 0) {
+			if (all_programs_stopped() && procmon_abort == 0) {
 				printf("All programs terminated. Restarting runlevel\n");
 				launch_runlevel();
 				return;
@@ -279,12 +306,16 @@ void signal_handler(int signum)
 			// some prorams are still running. We are simulating procmon runlevel actually
 			// so send SIGTERM to terminate all other programs
 			// this can happen when we kill the program using pkill -15
-			kill_runlevel();
+			if (runlevel_state == RUNLEVEL_STATE_STABLE) {
+				runlevel_state = RUNLEVEL_STATE_STOPPING;
+				kill_runlevel();
+			}
 
 			break;
 		}
 		case SIGSEGV:
 			{
+				runlevel_state = RUNLEVEL_STATE_STOPPING;
 				kill_runlevel();
 				// log or dump anything you ould want
 
@@ -302,6 +333,7 @@ void signal_handler(int signum)
 			{
 				printf("Received SIGTERM. Terminating all launched programs\n");
 				procmon_abort = 1;
+				runlevel_state = RUNLEVEL_STATE_STOPPING;
 				kill_runlevel();
 				break;
 			}
@@ -309,12 +341,13 @@ void signal_handler(int signum)
 		{
 			printf("Received SIGINT, terminating all programs and aborting.\n");
 
-			if (running == 0) {
+			if (all_programs_stopped()) {
 				printf("All programs terminated. quitting\n");
 				exit(0);
 			}
 
 			procmon_abort = 1;
+			runlevel_state = RUNLEVEL_STATE_STOPPING;
 			kill_runlevel();
 			break;
 		}
