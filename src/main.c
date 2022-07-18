@@ -182,6 +182,10 @@ void kill_runlevel()
 			printf("Sending SIGTERM to program: %s, pid: %d\n", program->name, program->pid);
 			program->status = STATUS_PROGRAM_STOPPING;
 			kill(program->pid, SIGTERM);
+#ifdef TWO_SIGTERM
+			printf("Sending SIGTERM again to program: %s, pid: %d\n", program->name, program->pid);
+			kill(program->pid, SIGTERM);
+#endif
 		} else {
 			printf("Skipping SIGTERM sending to program: %s, curr_status: %s\n", program->name, get_program_status(program->status));
 		}
