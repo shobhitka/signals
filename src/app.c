@@ -46,17 +46,29 @@ int main()
 {
     pthread_t tid1, tid2;
     int app_id = 1;
+    sigset_t sigset;
 
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
 
-    // launch some threads 
+    // block all signals for the process
+    sigfillset(&sigset);
+    sigprocmask(SIG_BLOCK, &sigset, NULL);
+
+    // launch some threads
     pthread_create(&tid1, NULL, thread_handler, (void *) &app_id);
     sleep(1);
     app_id = 2;
     pthread_create(&tid2, NULL, thread_handler, (void *) &app_id);
 
+    // Enable only SIGTERM and SIGINT
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGTERM);
+    sigaddset(&sigset, SIGINT);
+    sigprocmask(SIG_UNBLOCK, &sigset, NULL);
+
     // block till both threads terminate
     pthread_join(tid1, NULL); // will block till tid1 terminates
     pthread_join(tid2, NULL); // will block till tid2 terminates
 }
+
